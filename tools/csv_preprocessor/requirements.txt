@@ -1,0 +1,5 @@
+loguru
+spacy
+ginza
+ja_ginza_electra
+ja_ginza

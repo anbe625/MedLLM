@@ -2,7 +2,7 @@
 import unicodedata
 from typing import Optional
 
-from csv_reader import read_csv
+from .csv_reader import read_csv
 
 def is_include_choic(text: str):
     """

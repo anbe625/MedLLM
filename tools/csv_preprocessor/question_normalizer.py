@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 import re
 import unicodedata
-from csv_reader import read_csv
 import spacy
 import json
+
+from .csv_reader import read_csv
 
 # 日本語のspaCyモデル（GiNZA）をロードする
 nlp = spacy.load("ja_ginza")
