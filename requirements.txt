@@ -10,3 +10,8 @@ vllm==0.7.0
 wandb==0.19.8
 xformers==0.0.28.post3
 elasticsearch==8.17.2
+loguru
+spacy
+ginza
+ja_ginza_electra
+ja_ginza
