@@ -53,7 +53,7 @@ async def generate_answer(question, request_id):
     return final_answer
 
 async def main():
-    df = pd.read_csv("dataset/original/talk_q.csv")
+    df = pd.read_csv("dataset/original/qa_final.csv")
     answers = []
     total = len(df)
     
@@ -71,7 +71,7 @@ async def main():
         print("=" * 50)
     
     df["Answer"] = answers
-    df.to_csv("talk_submission.csv", index=False)
+    df.to_csv("qa_final_submission.csv", index=False)
 
 if __name__ == "__main__":
     asyncio.run(main())
