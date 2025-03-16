@@ -1,0 +1,6 @@
+#!/datadrive/dev/team-d/team-d-main/myenv/bin/python3
+
+from deepspeed.env_report import cli_main
+
+if __name__ == '__main__':
+    cli_main()

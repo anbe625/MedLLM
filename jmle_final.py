@@ -83,8 +83,6 @@ def retrieve_context(query_text: str, top_n: int, es_client, openai_client, embe
         }
     )
     hits = response_es['hits']['hits']
-    # ◆◆◆ ヒット件数を出力
-    print(f"[Elasticsearch] 過去問検索: {len(hits)} 件のヒットがあります。")
     docs = [hit['_source'].get('content', '') for hit in hits]
     # ◆◆◆ 改行ではなくユニークな区切り文字で結合（内部の改行に影響されない）
     return DOC_DELIMITER.join(docs)
@@ -131,8 +129,6 @@ def persistent_rerank_score(prompt, request_id):
         logger.error(f"Generation error for prompt (first 50 chars): {prompt[:50]}... Error: {e}")
         score = ""
     elapsed = time.perf_counter() - start_time
-    # ★★ デバッグ出力：プロンプト先頭部分と返されたスコアを出力 ★★
-    print(f"[persistent_rerank_score] プロンプト先頭: {prompt[:50]}...　返却スコア: '{score}' (elapsed {elapsed:.2f} sec)")
     return score
 
 def rerank_documents(query_text: str, docs: str, final_top_n: int, reranker_client) -> str:
@@ -145,7 +141,6 @@ def rerank_documents(query_text: str, docs: str, final_top_n: int, reranker_clie
     """
     # ◆◆◆ DOC_DELIMITERで分割して正しい件数をカウント
     doc_list = [doc.strip() for doc in docs.split(DOC_DELIMITER) if doc.strip()]
-    print(f"[GPU-7/グループ] リランキング前候補文書数: {len(doc_list)}")
     scored_docs = []
     for doc in doc_list:
         prompt = (
@@ -157,8 +152,6 @@ def rerank_documents(query_text: str, docs: str, final_top_n: int, reranker_clie
         try:
             score_str = reranker_client.submit(persistent_rerank_score, prompt, "score_req").result()
             score_str = score_str.strip()
-            # ★★ 各文書ごとのスコアも出力 ★★
-            print(f"[rerank_documents] 文書先頭: {doc[:50]}... のスコア: '{score_str}'")
             if score_str.isdigit():
                 score = int(score_str)
             else:
@@ -168,11 +161,10 @@ def rerank_documents(query_text: str, docs: str, final_top_n: int, reranker_clie
             logger.error(f"Score conversion error for doc: {doc[:50]}... Error: {e}")
             score = 0
         scored_docs.append((doc, score))
-        print(scored_docs)
+        # print(scored_docs)
     
     scored_docs.sort(key=lambda x: x[1], reverse=True)
     top_docs = [doc for doc, _ in scored_docs[:final_top_n]]
-    print(f"[GPU-7/グループ] リランキング後選出文書数: {len(top_docs)}")
     return DOC_DELIMITER.join(top_docs)
 
 def retrieve_context_with_reranking(query_text: str, initial_top_n: int, final_top_n: int,
@@ -191,7 +183,6 @@ def retrieve_option_context(question_text: str, option_text: str, option_label: 
                                            es_client, openai_client, embedding_model_name, team, index_name,
                                            reranker_client)
     num_docs = len([d for d in docs.split(DOC_DELIMITER) if d.strip()])
-    print(f"rinna: 選択肢{option_label}に対して、リランキングされた文書は {num_docs} 件でした。")
     return f"【問題文と選択肢{option_label}に関連する情報】\n{docs}"
 
 def retrieve_question_extra_context(question_text: str, initial_top_n: int, final_top_n: int,
@@ -427,11 +418,7 @@ def retrieve_past_exam_questions(query_text: str, top_n: int, es_client, index_n
             }
         )
         hits = response["hits"]["hits"]
-        # ★★ ヒット件数を出力 ★★
-        print(f"[過去問検索] Elasticsearch は {len(hits)} 件の過去問候補を返しました。")
         past_questions = [hit["_source"].get("content", "") for hit in hits]
-        for idx, pq in enumerate(past_questions):
-            print(f"[過去問候補] {idx}: {len(pq.splitlines())} 行の文書")
         return past_questions
     except Exception as e:
         logger.error(f"Error retrieving past exam questions: {e}")
@@ -448,14 +435,11 @@ def evaluate_past_exam_questions(question_text: str, past_questions: List[str], 
         )
         try:
             result_str = reranker_client.submit(persistent_rerank_score, prompt, "past_exam_eval").result()
-            # ★★ デバッグ出力：各候補に対して返された結果（先頭部分）を出力 ★★
-            print(f"[evaluate_past_exam_questions] 候補 {idx}: プロンプト先頭: {prompt[:50]}... -> 結果: {result_str[:50]}...")
             if "価値あり" in result_str:
                 valuable_questions.append(pq)
                 print(f"[価値あり過去問] {idx}: 渡す候補として採用")
         except Exception as e:
             logger.error(f"Error evaluating past exam question: {e}")
-    print(f"rinna: 類似過去問評価の結果、価値ありと判断された過去問は {len(valuable_questions)} 問でした。")
     return valuable_questions
 
 
@@ -564,7 +548,7 @@ def process_subset(df_subset: pd.DataFrame, group_label: str) -> pd.DataFrame:
     team = "TeamD"
     index_name = 'medical_llm_elastic_search'
     
-    normal_ranges_df = load_normal_ranges("blood_final.csv")
+    normal_ranges_df = load_normal_ranges("dataset/original/blood_final.csv")
     
     correct_count = 0
     total = len(df_subset)
@@ -619,7 +603,6 @@ def process_subset(df_subset: pd.DataFrame, group_label: str) -> pd.DataFrame:
         )
         # ◆◆◆ DOC_DELIMITERで分割して正しい件数を算出
         num_question_docs = len([d for d in context_question.split(DOC_DELIMITER) if d.strip()])
-        print(f"[{group_label}] 問題文関連情報として {num_question_docs} 件の文書を渡します。")
         
         context_options = {}
         option_docs_count = 0
@@ -634,18 +617,13 @@ def process_subset(df_subset: pd.DataFrame, group_label: str) -> pd.DataFrame:
                     reranker_client=rerank_executor
                 )
                 num_opt = len([d for d in context_options[opt].split(DOC_DELIMITER) if d.strip() and not d.startswith("【")])
-                print(f"[{group_label}] 選択肢{opt}関連情報として {num_opt} 件の文書を渡します。")
+                # print(f"[{group_label}] 選択肢{opt}関連情報として {num_opt} 件の文書を渡します。")
                 option_docs_count += num_opt
             else:
                 context_options[opt] = ""
         
         past_questions_candidates = retrieve_past_exam_questions(question_full, 10, main_es_client, index_name)
         valuable_past_questions = evaluate_past_exam_questions(question_full, past_questions_candidates, rerank_executor)
-        print(f"[{group_label}] rinna: 類似過去問として {len(valuable_past_questions)} 件の文書を渡します。")
-        
-        # 推論に渡す文書数は各部ごとに計算
-        num_docs = num_question_docs + option_docs_count + len(valuable_past_questions)
-        print(f"[{group_label}] 推論モデルに渡す文書は合計 {num_docs} 件です。")
         
         # combined_context作成時は、内部のDOC_DELIMITERを改行に置換して可読性を向上
         combined_context = ""
@@ -663,8 +641,8 @@ def process_subset(df_subset: pd.DataFrame, group_label: str) -> pd.DataFrame:
                 combined_context += pq + "\n"
         
         print(f"\n== [{group_label}] Question {idx+1}/{total} ==")
-        print("問題文:")
-        print(question_full)
+        # print("問題文:")
+        # print(question_full)
         
         # 推論エンジンへの問い合わせ
         request_ids = [f"{group_label}_q_{idx+1}_{i}" for i in range(len(executors))]
@@ -674,15 +652,15 @@ def process_subset(df_subset: pd.DataFrame, group_label: str) -> pd.DataFrame:
         results = [f.result() for f in futures]
         
         mechanical_votes = []
-        print("----- 抽出された答え（各モデルごと） -----")
-        print(question_full)
+        # print("----- 抽出された答え（各モデルごと） -----")
+        # print(question_full)
         for i, result in enumerate(results):
             extracted = extract_final_choices(result["answer"])
-            print(f"Extracted Answer from Model {i+1} (elapsed {result['elapsed']:.2f} sec): {', '.join(extracted)}")
+            # print(f"Extracted Answer from Model {i+1} (elapsed {result['elapsed']:.2f} sec): {', '.join(extracted)}")
             mechanical_votes.append(extracted)
         final_vote = weighted_majority_vote(mechanical_votes)
         print(f"Final Ensemble Vote: {final_vote}")
-        print(f"Correct Answer: {correct_answer}")
+        # print(f"Correct Answer: {correct_answer}")
         print("=" * 50)
         
         df_subset.loc[idx, "ensemble_vote"] = final_vote
@@ -693,7 +671,7 @@ def process_subset(df_subset: pd.DataFrame, group_label: str) -> pd.DataFrame:
             correct_count += 1
         
     accuracy = correct_count / total * 100
-    print(f"[{group_label}] Accuracy: {accuracy:.2f}%")
+    # print(f"[{group_label}] Accuracy: {accuracy:.2f}%")
     
     # 一時ファイル出力（必要なら）
     df_subset.to_csv(f"tmp_{group_label}.csv", index=False)
@@ -729,14 +707,14 @@ def jmle_main(input_path):
         if row["final_answer"] != "None" and row["final_answer"] == correct_answer.upper():
             correct_count_total += 1
     accuracy = correct_count_total / len(df_final) * 100
-    print(f"全体 Accuracy: {accuracy:.2f}%")
+    # print(f"全体 Accuracy: {accuracy:.2f}%")
     
     df_submit = df_final[['ID', 'final_answer']]
     df_submit.columns = ['ID', 'Answer']
     df_submit.to_csv(f"{input_path}_submission.csv", index=False)
     
 if __name__ == "__main__":
-    input_path = "kaggle_1.csv"
+    input_path = "dataset/original/kaggle_1.csv"
     jmle_main(input_path)
     import torch.distributed as dist
     if dist.is_initialized():
